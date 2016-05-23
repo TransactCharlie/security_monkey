@@ -66,7 +66,7 @@ class SQSAuditor(Auditor):
         policy = sqsitem.config
         for statement in policy.get("Statement", []):
             account_numbers = []
-            princ = statement.get("Principal", {})
+            princ = statement.get("Principal", "*")
             if isinstance(princ, dict):
                 princ_val = princ.get("AWS") or princ.get("Service")
             else:
