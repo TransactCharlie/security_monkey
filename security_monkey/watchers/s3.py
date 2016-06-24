@@ -259,4 +259,5 @@ class S3Item(ChangeItem):
             region=region,
             account=account,
             name=name,
+            arn="arn:aws:s3:::{name}".format(name=name),
             new_config=config)
