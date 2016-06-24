@@ -27,7 +27,7 @@ from auth.models import RBACUserMixin
 from security_monkey import db, app
 
 from sqlalchemy.dialects.postgresql import JSON
-from sqlalchemy import Column, Integer, String, DateTime, Boolean, Unicode
+from sqlalchemy import Column, Integer, String, DateTime, Boolean, Unicode, Text
 from sqlalchemy.dialects.postgresql import CIDR
 from sqlalchemy.schema import ForeignKey, UniqueConstraint
 from sqlalchemy.orm import relationship
@@ -35,6 +35,8 @@ from sqlalchemy.orm import relationship
 from sqlalchemy.orm import deferred
 
 import datetime
+import json
+import hashlib
 
 
 association_table = db.Table(
@@ -161,13 +163,15 @@ class Item(db.Model):
     id = Column(Integer, primary_key=True)
     cloud = Column(String(32))  # AWS, Google, Other
     region = Column(String(32))
-    name = Column(String(303))  # Max AWS name = 255 chars.  Add 48 chars for ' (sg-12345678901234567 in vpc-12345678901234567)'
+    name = Column(String(303), index=True)  # Max AWS name = 255 chars.  Add 48 chars for ' (sg-12345678901234567 in vpc-12345678901234567)'
+    arn = Column(Text(), nullable=True, index=True, unique=True)
+    latest_revision_hash = Column(String(32), index=True)
     tech_id = Column(Integer, ForeignKey("technology.id"), nullable=False)
     account_id = Column(Integer, ForeignKey("account.id"), nullable=False)
-    revisions = relationship("ItemRevision", backref="item", cascade="all, delete, delete-orphan", order_by="desc(ItemRevision.date_created)", lazy="dynamic")
-    issues = relationship("ItemAudit", backref="item", cascade="all, delete, delete-orphan")
     latest_revision_id = Column(Integer, nullable=True)
     comments = relationship("ItemComment", backref="revision", cascade="all, delete, delete-orphan", order_by="ItemComment.date_created")
+    revisions = relationship("ItemRevision", backref="item", cascade="all, delete, delete-orphan", order_by="desc(ItemRevision.date_created)", lazy="dynamic")
+    issues = relationship("ItemAudit", backref="item", cascade="all, delete, delete-orphan")
 
 
 class ItemComment(db.Model):
@@ -294,11 +298,16 @@ class Datastore(object):
         item = self._get_item(ctype, region, account, name)
         return item.issues
 
-    def store(self, ctype, region, account, name, active_flag, config, new_issues=[], ephemeral=False):
+    def store(self, ctype, region, account, name, active_flag, config, arn=None, new_issues=[], ephemeral=False):
         """
         Saves an itemrevision.  Create the item if it does not already exist.
         """
         item = self._get_item(ctype, region, account, name)
+
+        if arn:
+            item.arn = arn
+
+        item.latest_revision_hash = hashlib.md5(json.dumps(config, sort_keys=True)).hexdigest()
 
         if ephemeral:
             item_revision = item.revisions.first()
