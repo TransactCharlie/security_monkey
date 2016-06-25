@@ -195,7 +195,10 @@ class S3(Watcher):
         """
         Converts the bucket ACL and Policy information into a python dict that we can save.
         """
-        bucket_dict = {}
+        bucket_dict = {
+            'arn': "arn:aws:s3:::{name}".format(name=bucket_name)
+        }
+
         grantees = {}
         acl = self.wrap_aws_rate_limited_call(
             bhandle.get_acl
